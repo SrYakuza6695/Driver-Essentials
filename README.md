@@ -36,7 +36,7 @@ Fontes oficiais usadas:
 Cole no PowerShell. Ele baixa o script, pede permissao de Administrador pelo UAC e executa:
 
 ```powershell
-$u='https://raw.githubusercontent.com/SrYakuza6695/Driver-Essentials/main/Driver-Essentials.ps1';$p=Join-Path $env:TEMP 'Driver-Essentials.ps1';Invoke-WebRequest $u -UseBasicParsing -OutFile $p;Start-Process PowerShell -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$p`""
+$u='https://raw.githubusercontent.com/SrYakuza6695/Driver-Essentials/main/Driver-Essentials.ps1';$p=Join-Path $env:TEMP 'Driver-Essentials.ps1';Invoke-WebRequest -Uri $u -UseBasicParsing -OutFile $p;$a='-NoProfile -ExecutionPolicy Bypass -File "'+$p+'"';Start-Process -FilePath powershell.exe -Verb RunAs -Wait -ArgumentList $a
 ```
 
 ## Uso local
