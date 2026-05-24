@@ -13,9 +13,9 @@
  E proibido vender, revender, empacotar comercialmente ou distribuir este codigo
  como produto pago sem autorizacao expressa do perfil SrYakuza6695.
 
- O script detecta o PC, instala drivers pelo Windows Update/Microsoft Update
- e tenta ferramentas oficiais do fabricante quando possivel.
- Nao usa driver packs de terceiros.
+O script detecta o PC, instala drivers pelo Windows Update/Microsoft Update
+e tenta ferramentas oficiais do fabricante e da GPU quando possivel.
+Nao usa driver packs de terceiros.
 #>
 
 [CmdletBinding()]
@@ -23,6 +23,7 @@ param(
     [switch]$DownloadOnly,
     [switch]$AutoReboot,
     [switch]$SkipVendorTools,
+    [switch]$SkipGpuInstallers,
     [switch]$SkipRestorePoint
 )
 
@@ -489,6 +490,124 @@ function Invoke-VendorTools {
     }
 }
 
+function Get-GpuVendorPlan {
+    param([Parameter(Mandatory)]$Profile)
+
+    $gpuText = ($Profile.VideoControllers | ForEach-Object {
+        "$($_.Name) $($_.AdapterCompatibility) $($_.PNPDeviceID)"
+    }) -join ' '
+
+    $tools = @()
+
+    if ($gpuText -match '(?i)nvidia|geforce|quadro|\brtx\b|\bgtx\b') {
+        $tools += [pscustomobject]@{
+            Name = 'NVIDIA App'
+            PageUrl = 'https://www.nvidia.com/en-us/software/nvidia-app/'
+            LinkRegex = '(?<url>https://us\.download\.nvidia\.com/nvapp/client/[^"''<>\s]+/NVIDIA_app_[^"''<>\s]+\.exe)'
+        }
+    }
+
+    if ($gpuText -match '(?i)\bamd\b|advanced micro devices|radeon|\brx\s?[0-9]|vega') {
+        $tools += [pscustomobject]@{
+            Name = 'AMD Auto-Detect and Install'
+            PageUrl = 'https://www.amd.com/en/support/download/drivers.html'
+            LinkRegex = '(?<url>https://drivers\.amd\.com/drivers/installer/[^"''<>\s]+amd-software-adrenalin-edition[^"''<>\s]+\.exe)'
+        }
+    }
+
+    return $tools
+}
+
+function Resolve-OfficialDownloadLink {
+    param(
+        [Parameter(Mandatory)][string]$PageUrl,
+        [Parameter(Mandatory)][string]$LinkRegex,
+        [Parameter(Mandatory)][string]$Name
+    )
+
+    Write-Host "Procurando link oficial de $Name..." -ForegroundColor Cyan
+    $response = Invoke-WebRequest -Uri $PageUrl -UseBasicParsing -MaximumRedirection 5
+    $match = [regex]::Match($response.Content, $LinkRegex, [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+
+    if (-not $match.Success) {
+        throw "Nao foi possivel encontrar o link oficial de $Name em $PageUrl."
+    }
+
+    $url = [Net.WebUtility]::HtmlDecode($match.Groups['url'].Value)
+    if ($url -match '^//') {
+        $url = "https:$url"
+    }
+    elseif ($url -notmatch '^https?://') {
+        $url = ([Uri]::new([Uri]$PageUrl, $url)).AbsoluteUri
+    }
+
+    return $url
+}
+
+function Save-OfficialInstaller {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$Url
+    )
+
+    $installerDir = Join-Path $script:LogDir 'Installers'
+    New-Item -Path $installerDir -ItemType Directory -Force | Out-Null
+
+    $fileName = [IO.Path]::GetFileName(([Uri]$Url).AbsolutePath)
+    if ([string]::IsNullOrWhiteSpace($fileName)) {
+        $fileName = ($Name -replace '[^a-zA-Z0-9.-]', '-') + '.exe'
+    }
+
+    $destination = Join-Path $installerDir $fileName
+    Write-Host "Baixando $Name de fonte oficial..." -ForegroundColor Cyan
+    Invoke-WebRequest -Uri $Url -UseBasicParsing -OutFile $destination
+    Write-Host "$Name salvo em: $destination" -ForegroundColor DarkGray
+
+    return $destination
+}
+
+function Invoke-OfficialGpuInstallers {
+    param([Parameter(Mandatory)]$Profile)
+
+    if ($SkipGpuInstallers) {
+        Write-Host 'Instaladores oficiais de GPU ignorados por parametro.' -ForegroundColor DarkGray
+        return
+    }
+
+    Write-Step 'Verificando drivers completos AMD/NVIDIA'
+    $tools = @(Get-GpuVendorPlan -Profile $Profile)
+
+    if ($tools.Count -eq 0) {
+        Write-Host 'Nenhuma GPU AMD/NVIDIA foi detectada para instalador completo.' -ForegroundColor Yellow
+        return
+    }
+
+    foreach ($tool in $tools) {
+        try {
+            $url = Resolve-OfficialDownloadLink -PageUrl $tool.PageUrl -LinkRegex $tool.LinkRegex -Name $tool.Name
+            $installer = Save-OfficialInstaller -Name $tool.Name -Url $url
+
+            if ($DownloadOnly) {
+                Write-Host "$($tool.Name) baixado. Modo DownloadOnly ativo, nao vou abrir o instalador." -ForegroundColor Yellow
+                continue
+            }
+
+            Write-Host "Abrindo $($tool.Name). Siga o instalador oficial para concluir o driver completo." -ForegroundColor Yellow
+            $process = Start-Process -FilePath $installer -Wait -PassThru
+
+            if ($process.ExitCode -eq 0 -or $null -eq $process.ExitCode) {
+                Write-Good "$($tool.Name) finalizado ou encaminhado para o instalador oficial."
+            }
+            else {
+                Write-SoftWarning "$($tool.Name) retornou codigo $($process.ExitCode). Confira a janela/log do instalador."
+            }
+        }
+        catch {
+            Write-SoftWarning "Nao foi possivel baixar/abrir $($tool.Name). Detalhe: $($_.Exception.Message)"
+        }
+    }
+}
+
 function Invoke-DeviceRescan {
     Write-Step 'Reescaneando dispositivos Plug and Play'
     try {
@@ -573,6 +692,7 @@ try {
     Invoke-DeviceRescan
     Invoke-WindowsDriverUpdates
     Invoke-VendorTools -Profile $profile
+    Invoke-OfficialGpuInstallers -Profile $profile
     Invoke-DeviceRescan
     Export-DriverInventory
     Show-ProblemDevices

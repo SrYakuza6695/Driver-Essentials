@@ -7,6 +7,9 @@ Instalador PowerShell para detectar o PC e buscar drivers essenciais no Windows 
 - Detecta fabricante, modelo, placa-mae, CPU, GPU e adaptadores de rede.
 - Usa a API nativa do Windows Update/Microsoft Update para procurar drivers.
 - Baixa e instala drivers classificados como `Driver`.
+- Detecta GPU AMD/NVIDIA e tenta baixar o instalador oficial correspondente:
+  - NVIDIA App para drivers Game Ready/Studio e recursos NVIDIA.
+  - AMD Auto-Detect and Install para AMD Radeon e Ryzen Chipsets.
 - Tenta ferramentas oficiais por fabricante quando possivel:
   - Dell Command Update
   - Lenovo System Update
@@ -18,6 +21,15 @@ Instalador PowerShell para detectar o PC e buscar drivers essenciais no Windows 
 ## Aviso importante
 
 Nenhum script consegue prometer 100% dos drivers de qualquer PC do mundo. Este projeto busca o maximo seguro por fontes oficiais, sem driver packs de terceiros.
+
+## Nota sobre AMD/NVIDIA
+
+O script tambem tenta drivers completos de GPU. Quando detectar NVIDIA, baixa o instalador oficial da NVIDIA App. Quando detectar AMD, baixa o instalador oficial AMD Auto-Detect and Install. Esses instaladores podem abrir uma janela oficial para voce aceitar a instalacao e escolher o tipo de driver.
+
+Fontes oficiais usadas:
+
+- NVIDIA App: `https://www.nvidia.com/en-us/software/nvidia-app/`
+- AMD Drivers and Support: `https://www.amd.com/en/support/download/drivers.html`
 
 ## Comando cola-e-roda
 
@@ -45,6 +57,12 @@ Permitir reinicio automatico quando necessario:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Driver-Essentials.ps1 -AutoReboot
+```
+
+Pular instaladores completos de GPU AMD/NVIDIA:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Driver-Essentials.ps1 -SkipGpuInstallers
 ```
 
 ## Licenca/uso
