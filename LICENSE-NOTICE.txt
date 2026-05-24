@@ -1,0 +1,10 @@
+Driver Essentials
+
+Perfil do dono: SrYakuza6695
+
+Este codigo e fornecido para uso pessoal/tecnico.
+E proibido vender, revender, empacotar comercialmente ou distribuir este codigo
+como produto pago sem autorizacao expressa do perfil SrYakuza6695.
+
+O script usa fontes oficiais, como Windows Update/Microsoft Update e ferramentas
+oficiais de fabricantes quando disponiveis. Nao usa driver packs de terceiros.
